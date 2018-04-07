@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Link Share</string>
+    <string name="username_hint">Username</string>
+    <string name="password_hint">Password</string>
+    <string name="device_name_hint">Device Name</string>
+    <string name="login_text">Login</string>
+</resources>
