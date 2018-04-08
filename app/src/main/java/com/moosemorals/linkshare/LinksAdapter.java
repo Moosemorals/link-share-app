@@ -97,7 +97,6 @@ public class LinksAdapter implements ListAdapter {
             link = links.get(position);
         }
 
-
         LinkView v;
         if (convertView == null) {
             v = new LinkView(parent);

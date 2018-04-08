@@ -17,6 +17,7 @@ public final class LinkView extends LinearLayout {
 
     public LinkView(Context context) {
         super(context);
+        init(context);
     }
 
     public LinkView(Context context, @Nullable AttributeSet attrs) {
@@ -58,8 +59,12 @@ public final class LinkView extends LinearLayout {
 
         titleView.setText(title);
 
-        LinkShareApplication.loadFavIcon(link.getUrl(), bitmap -> {
-            favIconView.setImageBitmap(bitmap);
-        });
+        String favIconURL = link.getFavIconUrl();
+        if (favIconURL != null) {
+
+            LinkShareApplication.loadFavIcon(favIconURL, bitmap -> {
+                favIconView.setImageBitmap(bitmap);
+            });
+        }
     }
 }

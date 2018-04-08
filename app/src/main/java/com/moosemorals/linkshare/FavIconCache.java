@@ -9,6 +9,7 @@ import android.util.Log;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -113,9 +114,9 @@ final class FavIconCache {
             try {
                 URL target = new URL(strings[0]);
 
-                HttpsURLConnection conn = (HttpsURLConnection) target.openConnection();
+                HttpURLConnection conn = (HttpURLConnection) target.openConnection();
 
-                conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory(context.get()));
+       //         conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory(context.get()));
 
                 conn.setRequestMethod("GET");
                 conn.setDoOutput(false);

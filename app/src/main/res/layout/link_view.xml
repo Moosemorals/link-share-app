@@ -10,7 +10,7 @@
         android:layout_width="16dp"
         android:layout_height="16dp"
         android:layout_weight="1"
-        android:src="" />
+         />
 
     <TextView
         android:id="@+id/link_view_title"
