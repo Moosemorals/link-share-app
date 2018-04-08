@@ -168,6 +168,8 @@ public class LinksAdapter implements ListAdapter {
             for (int i = 0; i < json.length(); i += 1) {
                 links.add(new Link(json.getJSONObject(i)));
             }
+
+            Log.d(TAG, "Now we've got " + links.size() + " links");
         }
         notifyObservers();
     }

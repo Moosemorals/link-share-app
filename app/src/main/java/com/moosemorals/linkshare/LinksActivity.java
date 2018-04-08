@@ -14,6 +14,9 @@ import android.widget.TextView;
 public class LinksActivity extends Activity {
     private static final String TAG = "LinksActivity";
     private LinksAdapter linksAdapter;
+
+
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.links);
