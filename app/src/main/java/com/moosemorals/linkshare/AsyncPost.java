@@ -40,7 +40,7 @@ class AsyncPost extends AsyncTask<String, Void, AsyncResult<JSONObject>> {
 
             HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
 
-            conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory(context.get()));
+            conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory());
 
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);

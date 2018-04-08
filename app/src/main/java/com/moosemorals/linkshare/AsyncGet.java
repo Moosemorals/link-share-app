@@ -1,10 +1,8 @@
 package com.moosemorals.linkshare;
 
 import android.content.Context;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
-import android.widget.ListAdapter;
 
 import org.json.JSONObject;
 
@@ -12,7 +10,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.function.Consumer;
 

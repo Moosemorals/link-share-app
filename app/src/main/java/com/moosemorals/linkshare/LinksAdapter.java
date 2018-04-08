@@ -97,23 +97,15 @@ public class LinksAdapter implements ListAdapter {
             link = links.get(position);
         }
 
-        LayoutInflater inflater = (LayoutInflater) parent.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
-        View v;
+        LinkView v;
         if (convertView == null) {
-            v = inflater.inflate(R.layout.links_row, null);
+            v = new LinkView(parent);
         } else {
-            v = convertView;
+            v = (LinkView)convertView;
         }
 
-        TextView text = v.findViewById(R.id.links_row_title);
-
-        String title = link.getTitle();
-        if (title == null) {
-            title = link.getUrl();
-        }
-
-        text.setText(title);
+        v.setLink(link);
 
         return v;
     }

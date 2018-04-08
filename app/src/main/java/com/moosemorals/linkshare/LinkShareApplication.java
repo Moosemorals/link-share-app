@@ -3,6 +3,7 @@ package com.moosemorals.linkshare;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -21,6 +22,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.function.Consumer;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -35,6 +37,19 @@ public final class LinkShareApplication extends Application {
     static final String TOKEN_KEY = "com.moosemorals.linkshare.token";
 
     private static final String PREFS_NAME = LinkShareApplication.class.getName();
+
+    private static FavIconCache favIconCache;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        favIconCache = new FavIconCache(this.getApplicationContext());
+        favIconCache.start();
+    }
+
+    static void loadFavIcon(String url, Consumer<Bitmap> callback) {
+        favIconCache.loadIcon(url, callback);
+    }
 
     static String paramEncode(String... param) {
         if (param.length % 2 != 0) {
