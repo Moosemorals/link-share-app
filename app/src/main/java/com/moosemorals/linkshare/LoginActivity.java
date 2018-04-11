@@ -21,7 +21,7 @@ public final class LoginActivity extends Activity implements Consumer<AsyncResul
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
 
-        if (LinkShareApplication.getSharedPrefrences(this).contains(LinkShareApplication.TOKEN_KEY)) {
+        if (LinkShareApplication.getSharedPreferences(this).contains(LinkShareApplication.TOKEN_KEY)) {
             startListActivity();
         }
 
@@ -64,7 +64,7 @@ public final class LoginActivity extends Activity implements Consumer<AsyncResul
     }
 
     private void onSuccess(String username, String token) {
-        LinkShareApplication.getSharedPrefrences(this)
+        LinkShareApplication.getSharedPreferences(this)
                 .edit()
                 .putString(LinkShareApplication.USERNAME_KEY, username)
                 .putString(LinkShareApplication.TOKEN_KEY, token)

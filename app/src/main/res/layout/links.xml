@@ -8,8 +8,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-    <ListView
-        android:id="@+id/links_list"
+    <com.moosemorals.linkshare.ConversationView
+        android:id="@+id/links_convo"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        />
 </LinearLayout>

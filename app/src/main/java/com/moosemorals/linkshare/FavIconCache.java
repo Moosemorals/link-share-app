@@ -1,9 +1,9 @@
 package com.moosemorals.linkshare;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import java.io.BufferedInputStream;
@@ -16,13 +16,11 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import javax.net.ssl.HttpsURLConnection;
-
 final class FavIconCache {
     private static final String TAG = "FavIconCache";
-    private final Context context;
     private final Map<String, WeakReference<Bitmap>> cache = new HashMap<>();
     private final LinkedList<QueueItem> queue = new LinkedList<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable backgroundRunnable = () -> {
         while (!Thread.interrupted()) {
             try {
@@ -41,20 +39,20 @@ final class FavIconCache {
         }
     };
 
-    FavIconCache(Context context) {
-        this.context = context;
-    }
-
     private void handleNext(QueueItem next) {
         Bitmap bm = getBitmap(next.url);
         if (bm != null) {
-            next.callback.accept(bm);
+            doOnUiThread(() -> next.callback.accept(bm));
         } else {
-            new IconFetcher(context, bitmap -> {
+            new IconFetcher().doFetch(next.url, bitmap -> {
                 storeBitmap(next.url, bitmap);
-                next.callback.accept(bitmap);
-            }).execute(next.url);
+                doOnUiThread(() -> next.callback.accept(bitmap));
+            });
         }
+    }
+
+    private void doOnUiThread(Runnable r) {
+        handler.post(r);
     }
 
     private void storeBitmap(String url, Bitmap bitmap) {
@@ -99,24 +97,13 @@ final class FavIconCache {
         }
     }
 
-    private static class IconFetcher extends AsyncTask<String, Void, Bitmap> {
+    private static class IconFetcher {
 
-        private final WeakReference<Context> context;
-        private final Consumer<Bitmap> callback;
-
-        IconFetcher(Context context, Consumer<Bitmap> callback) {
-            this.context = new WeakReference<>(context);
-            this.callback = callback;
-        }
-
-        @Override
-        protected Bitmap doInBackground(String... strings) {
+        private void doFetch(String target, Consumer<Bitmap> callback) {
             try {
-                URL target = new URL(strings[0]);
+                URL url = new URL(target);
 
-                HttpURLConnection conn = (HttpURLConnection) target.openConnection();
-
-       //         conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory(context.get()));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
                 conn.setRequestMethod("GET");
                 conn.setDoOutput(false);
@@ -125,22 +112,19 @@ final class FavIconCache {
                     Log.d(TAG, "Connecting");
                     conn.connect();
                     Log.d(TAG, "Connected, trying to read result");
+
                     try (BufferedInputStream in = new BufferedInputStream(conn.getInputStream())) {
-                        return BitmapFactory.decodeStream(in);
+                        callback.accept(BitmapFactory.decodeStream(in));
                     }
                 } finally {
                     conn.disconnect();
                 }
 
             } catch (IOException e) {
-                Log.w(TAG, "Can't get FavIcon: " + strings[0], e);
-                return null;
+                Log.w(TAG, "Can't get FavIcon: " + target, e);
+                callback.accept(null);
             }
         }
 
-        @Override
-        protected void onPostExecute(Bitmap bitmap) {
-            callback.accept(bitmap);
-        }
     }
 }

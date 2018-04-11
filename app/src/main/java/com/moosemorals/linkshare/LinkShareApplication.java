@@ -43,7 +43,7 @@ public final class LinkShareApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        favIconCache = new FavIconCache(this.getApplicationContext());
+        favIconCache = new FavIconCache();
         favIconCache.start();
     }
 
@@ -77,12 +77,16 @@ public final class LinkShareApplication extends Application {
         return result.toString();
     }
 
-    static SharedPreferences getSharedPrefrences(Context context) {
+    static SharedPreferences getSharedPreferences(Context context) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     static String getToken(Context context) {
-        return getSharedPrefrences(context).getString(TOKEN_KEY, null);
+        return getSharedPreferences(context).getString(TOKEN_KEY, null);
+    }
+
+    static String getUserName(Context context) {
+        return getSharedPreferences(context).getString(USERNAME_KEY, null);
     }
 
     // Adapted from https://stackoverflow.com/q/44483431/195833

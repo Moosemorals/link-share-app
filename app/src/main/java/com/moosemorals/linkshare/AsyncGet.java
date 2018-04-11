@@ -18,12 +18,12 @@ import javax.net.ssl.HttpsURLConnection;
 class AsyncGet extends AsyncTask<String, Void, AsyncResult<JSONObject>> {
     private static final String TAG = "AsyncGet";
     private final String target;
-    private final WeakReference<Consumer<AsyncResult<JSONObject>>> callback;
+    private final Consumer<AsyncResult<JSONObject>> callback;
     private final WeakReference<Context> context;
 
     AsyncGet(Context context, String target, Consumer<AsyncResult<JSONObject>> callback) {
         this.target = target;
-        this.callback = new WeakReference<>(callback);
+        this.callback = callback;
         this.context = new WeakReference<>(context);
     }
 
@@ -70,10 +70,7 @@ class AsyncGet extends AsyncTask<String, Void, AsyncResult<JSONObject>> {
 
     @Override
     protected void onPostExecute(AsyncResult<JSONObject> result) {
-        Consumer<AsyncResult<JSONObject>> fn = callback.get();
-        if (fn != null) {
-            Log.d(TAG, "Passing result back to main thread");
-            fn.accept(result);
-        }
+       Log.d(TAG, "Passing result back to main thread");
+       callback.accept(result);
     }
 }

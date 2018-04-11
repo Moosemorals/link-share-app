@@ -8,10 +8,12 @@ final class Link {
     private final String url;
     private final String title;
     private final String favIconUrl;
+    private final String from;
 
     Link(JSONObject json) throws JSONException {
         this.url = json.getString("url");
         this.title = json.getString("title");
+        this.from = json.getString("from");
         if (json.has("favIconURL")) {
             this.favIconUrl = json.getString("favIconURL");
         } else {
@@ -31,6 +33,10 @@ final class Link {
         return favIconUrl;
     }
 
+    public String getDisplayText() {
+        return title != null ? title : url;
+    }
+
     @Override
     public String toString() {
         return "Link{" +
@@ -38,5 +44,9 @@ final class Link {
                 ", title='" + title + '\'' +
                 ", favIconUrl='" + favIconUrl + '\'' +
                 '}';
+    }
+
+    public String getFrom() {
+        return from;
     }
 }
