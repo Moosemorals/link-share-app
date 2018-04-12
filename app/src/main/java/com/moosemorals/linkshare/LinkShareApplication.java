@@ -39,12 +39,20 @@ public final class LinkShareApplication extends Application {
     private static final String PREFS_NAME = LinkShareApplication.class.getName();
 
     private static FavIconCache favIconCache;
+    private HttpClient httpClient;
 
     @Override
     public void onCreate() {
         super.onCreate();
         favIconCache = new FavIconCache();
         favIconCache.start();
+
+        httpClient = new HttpClient(this);
+        httpClient.start();
+    }
+
+    HttpClient getHttpClient() {
+        return httpClient;
     }
 
     static void loadFavIcon(String url, Consumer<Bitmap> callback) {
