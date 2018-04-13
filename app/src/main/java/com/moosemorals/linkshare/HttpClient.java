@@ -66,6 +66,13 @@ final class HttpClient {
         }
     }
 
+     <T> void get(String url, Function<InputStream, T> process) {
+        synchronized (queue) {
+            queue.add(new QueueItem<>(url, process, null));
+            queue.notifyAll();
+        }
+    }
+
     private <T> void handleNext(QueueItem<T> next) {
         T stash = null;
         try {
@@ -93,12 +100,14 @@ final class HttpClient {
             Log.w(TAG, "Problem fetching " + next.url, e);
         }
 
-        T result = stash;
-        handler.post(() -> {
-            if (result != null) {
-                next.callback.accept(result);
-            }
-        });
+        if (next.callback != null) {
+            T result = stash;
+            handler.post(() -> {
+                if (result != null) {
+                    next.callback.accept(result);
+                }
+            });
+        }
     }
 
     private static class QueueItem<T> {

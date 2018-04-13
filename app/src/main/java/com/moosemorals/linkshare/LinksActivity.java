@@ -32,6 +32,7 @@ public class LinksActivity extends Activity {
         conversationView = findViewById(R.id.links_convo);
 
         conversationView.setHttpClient(((LinkShareApplication)getApplication()).getHttpClient());
+        conversationView.setFavIconCache(((LinkShareApplication)getApplication()).getFavIconCache());
     }
 
     @Override

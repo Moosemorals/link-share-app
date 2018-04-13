@@ -38,7 +38,7 @@ public final class LinkShareApplication extends Application {
 
     private static final String PREFS_NAME = LinkShareApplication.class.getName();
 
-    private static FavIconCache favIconCache;
+    private FavIconCache favIconCache;
     private HttpClient httpClient;
 
     @Override
@@ -55,8 +55,8 @@ public final class LinkShareApplication extends Application {
         return httpClient;
     }
 
-    static void loadFavIcon(String url, Consumer<Bitmap> callback) {
-        favIconCache.loadIcon(url, callback);
+    FavIconCache getFavIconCache() {
+        return favIconCache;
     }
 
     static String paramEncode(String... param) {

@@ -9,6 +9,7 @@ final class Link {
     private final String title;
     private final String favIconUrl;
     private final String from;
+    private final long created;
 
     Link(JSONObject json) throws JSONException {
         this.url = json.getString("url");
@@ -19,6 +20,7 @@ final class Link {
         } else {
             this.favIconUrl = null;
         }
+        this.created = json.getLong("created");
     }
 
     public String getUrl() {
@@ -48,5 +50,9 @@ final class Link {
 
     public String getFrom() {
         return from;
+    }
+
+    public long getCreated() {
+        return created;
     }
 }

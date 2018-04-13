@@ -1,5 +1,6 @@
 package com.moosemorals.linkshare;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -7,7 +8,6 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.support.annotation.Nullable;
-import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.text.TextUtils;
@@ -22,7 +22,9 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,13 +32,20 @@ public final class ConversationView extends View {
     private static final String TAG = "ConversationView";
 
     private static final int ICON_SIZE = 64;
-    private static final float BUBBLE_MARGIN = ICON_SIZE / 4.0f;
+    private static final int LINE_SPACING = ICON_SIZE / 4;
+    private static final float BUBBLE_MARGIN = ICON_SIZE / 3f;
+    private static final float BUBBLE_RADIUS = 2 * ICON_SIZE / 3f;
+    private static final int WINDOW_MARGIN = ICON_SIZE / 4;
+
     private static final int TEXT_SIZE = 48;
     private final List<Link> links = new ArrayList<>();
     private final Map<String, BitmapData> favIcons = new HashMap<>();
+    private final List<LinkData> linkData = new LinkedList<>();
+    private final List<LinkData> group = new LinkedList<>();
     private HttpClient httpClient;
+    private FavIconCache favIconCache;
     private TextPaint tp;
-    private Paint iconPaint;
+    private Paint iconPaint, bubblePaint;
     private String user;
     private Rect iconSrc, iconDest;
     private RectF bubbleRect;
@@ -65,101 +74,118 @@ public final class ConversationView extends View {
         this.httpClient = client;
     }
 
+    void setFavIconCache(FavIconCache cache) {
+        this.favIconCache = cache;
+    }
+
     private void init() {
         user = LinkShareApplication.getUserName(getContext());
         bubbleRect = new RectF();
         iconDest = new Rect(0, 0, ICON_SIZE, ICON_SIZE);
         iconSrc = new Rect(0, 0, 0, 0);
+
         tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         tp.setColor(0xff000000);
         tp.setTextSize(TEXT_SIZE);
+
+        bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bubblePaint.setColor(0xffa0f0a0);
+
         iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        iconPaint.setColor(0x88e0e0e0);
+        iconPaint.setColor(0xffe0e0e0);
     }
 
+    @SuppressLint("DrawAllocation")
     @Override
     protected void onDraw(Canvas canvas) {
         Log.d(TAG, "onDraw");
-        final int width = canvas.getWidth();
+        final int width = canvas.getWidth() - (WINDOW_MARGIN * 2);
         int offset = ICON_SIZE;
-        int lastOffset = 0;
-        float textWidth = 0;
-        boolean mine, oldMine = false;
-        StaticLayout text;
 
-        bubbleRect.top = ICON_SIZE / 2;
+        linkData.clear();
 
         synchronized (links) {
-            for (int i = 0, linksSize = links.size(); i < linksSize; i++) {
-                Link link = links.get(i);
+            if (links.isEmpty()) {
+                Log.i(TAG, "Nothing to display");
+                return;
+            }
 
-                mine = user.equals(link.getFrom());
-
-                // Need to do text first because we need the width for the
-                // bubble
-                text = layoutText(link, mine, width - (ICON_SIZE * 3));
-
-                if (text.getLineWidth(0) > textWidth) {
-                    textWidth = text.getLineWidth(0);
-                }
-
-                // Bubble
-                if (i > 0 && mine != oldMine) {
-                    canvas.save();
-                    if (oldMine) {
-                        canvas.translate(width - (text.getWidth() + 2f * ICON_SIZE), lastOffset + 2 * BUBBLE_MARGIN);
-                    } else {
-                        canvas.translate(2 * BUBBLE_MARGIN, lastOffset + 2 * BUBBLE_MARGIN);
-                    }
-                    bubbleRect.top = 0;
-                    bubbleRect.left = 0;
-                    bubbleRect.right = textWidth + (ICON_SIZE * 2f);
-                    bubbleRect.bottom = (offset - lastOffset) - BUBBLE_MARGIN;
-
-                    canvas.drawRoundRect(bubbleRect, ICON_SIZE / 4f, ICON_SIZE / 4f, iconPaint);
-
-                    canvas.restore();
-                    lastOffset = offset;
-                    offset += ICON_SIZE;
-                    textWidth = 0;
-                }
-
-                // FavIcon
-                canvas.save();
-                if (mine) {
-                    canvas.translate(width - (ICON_SIZE * 2), offset);
-                } else {
-                    canvas.translate(ICON_SIZE, offset);
-                }
-
-                BitmapData icon = getIcon(link);
-                canvas.drawRect(iconDest, iconPaint);
-
-                if (icon != null && icon.bitmap != null) {
-                    iconSrc.right = icon.bitmap.getWidth();
-                    iconSrc.bottom = icon.bitmap.getHeight();
-                    canvas.drawBitmap(icon.bitmap, iconSrc, iconDest, iconPaint);
-                }
-                canvas.restore();
-
-                // Text
-                canvas.save();
-
-                if (mine) {
-                    canvas.translate(ICON_SIZE, offset);
-                } else {
-                    canvas.translate(ICON_SIZE * 2, offset);
-                }
-
-                text.draw(canvas);
-                canvas.restore();
-
-                // Setup for next loop
-                oldMine = mine;
-                offset += text.getHeight();
+            for (Link link : links) {
+                boolean mine = user.equals(link.getFrom());
+                linkData.add(new LinkData(
+                        link,
+                        mine,
+                        layoutText(link, mine, width - (ICON_SIZE * 3))
+                ));
             }
         }
-        Log.d(TAG, "Done with draw");
+
+        canvas.translate(WINDOW_MARGIN, WINDOW_MARGIN);
+
+        Log.d(TAG, "Displaying: " + linkData.size());
+        do {
+            group.clear();
+
+            LinkData next = linkData.remove(0);
+
+            float groupWidth = next.textLayout.getLineWidth(0);
+            int groupHeight = next.textLayout.getHeight();
+            boolean mine = next.mine;
+            group.add(next);
+
+            while (!linkData.isEmpty() && linkData.get(0).mine == mine) {
+                next = linkData.remove(0);
+                groupHeight += next.textLayout.getHeight() + LINE_SPACING;
+                if (next.textLayout.getLineWidth(0) > groupWidth) {
+                    groupWidth = next.textLayout.getLineWidth(0);
+                }
+                group.add(next);
+            }
+
+            float textWidth = groupWidth;
+            groupWidth += ICON_SIZE + BUBBLE_MARGIN * 2;
+
+            // Draw bubble
+            canvas.save();
+            if (mine) {
+                canvas.translate(width - groupWidth, offset - BUBBLE_MARGIN);
+            } else {
+                canvas.translate(0, offset - BUBBLE_MARGIN);
+            }
+
+            bubbleRect.set(0, 0, groupWidth, groupHeight + BUBBLE_MARGIN * 2);
+            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bubblePaint);
+
+            canvas.translate(BUBBLE_MARGIN, BUBBLE_MARGIN);
+            for (LinkData d : group) {
+                BitmapData bitmapData = getIcon(d.link);
+                canvas.save();
+                if (mine) {
+                    canvas.translate(textWidth, 0);
+                }
+
+                if (bitmapData != null && bitmapData.bitmap != null) {
+                    Bitmap icon = bitmapData.bitmap;
+                    iconSrc.set(0, 0, icon.getWidth(), icon.getHeight());
+                    canvas.drawBitmap(icon, iconSrc, iconDest, iconPaint);
+                } else {
+                    canvas.drawRect(iconDest, iconPaint);
+                }
+
+                canvas.restore();
+                canvas.save();
+                if (!mine) {
+                    canvas.translate(ICON_SIZE, 0);
+                }
+                d.textLayout.draw(canvas);
+                canvas.restore();
+
+                canvas.translate(0, d.textLayout.getHeight() + LINE_SPACING);
+            }
+
+            offset += groupHeight + BUBBLE_MARGIN * 3;
+            canvas.restore();
+        } while (!linkData.isEmpty());
     }
 
     @Override
@@ -181,7 +207,7 @@ public final class ConversationView extends View {
 
         Log.d(TAG, "Checking for icon");
         if (icon == null || (icon.bitmap == null && !icon.tried)) {
-            LinkShareApplication.loadFavIcon(favIconUrl, bm -> {
+            favIconCache.loadIcon(favIconUrl, bm -> {
                 synchronized (favIcons) {
                     favIcons.put(favIconUrl, new BitmapData(bm, true));
                     Log.d(TAG, "Got an icon");
@@ -200,7 +226,7 @@ public final class ConversationView extends View {
                 title.length(),
                 tp,
                 width);
-        builder.setAlignment(mine ? Layout.Alignment.ALIGN_OPPOSITE : Layout.Alignment.ALIGN_NORMAL);
+        //  builder.setAlignment(mine ? Layout.Alignment.ALIGN_OPPOSITE : Layout.Alignment.ALIGN_NORMAL);
         builder.setMaxLines(1);
         builder.setEllipsize(TextUtils.TruncateAt.END);
 
@@ -209,11 +235,22 @@ public final class ConversationView extends View {
 
     void loadLinks() {
         httpClient.get("links", in -> {
+            // Off main thread
             try {
                 JSONObject json = LinkShareApplication.readStream(new InputStreamReader(in));
                 if (json.has("success")) {
                     Log.d(TAG, "Got some links");
-                    return parseLinks(json.getJSONArray("success"));
+                    List<Link> parsed = parseLinks(json.getJSONArray("success"));
+
+                    parsed.sort(Comparator.comparingLong(Link::getCreated));
+
+                    synchronized (links) {
+                        links.clear();
+                        links.addAll(parsed);
+                    }
+
+                    postInvalidate();
+                    return null;
                 } else {
                     Log.e(TAG, "Server problem getting links: " + json.getString("error"));
                 }
@@ -221,14 +258,7 @@ public final class ConversationView extends View {
                 Log.w(TAG, "Problem fetching links", e);
             }
             return null;
-        }, l -> {
-            synchronized (links) {
-                links.clear();
-                links.addAll(l);
-                invalidate();
-            }
         });
-
     }
 
     private List<Link> parseLinks(JSONArray json) throws JSONException {
@@ -246,6 +276,18 @@ public final class ConversationView extends View {
         BitmapData(Bitmap bitmap, boolean tried) {
             this.bitmap = bitmap;
             this.tried = tried;
+        }
+    }
+
+    private static class LinkData {
+        Link link;
+        StaticLayout textLayout;
+        boolean mine;
+
+        LinkData(Link link, boolean mine, StaticLayout textLayout) {
+            this.link = link;
+            this.mine = mine;
+            this.textLayout = textLayout;
         }
     }
 
