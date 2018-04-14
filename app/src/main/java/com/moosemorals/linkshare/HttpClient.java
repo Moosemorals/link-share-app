@@ -102,10 +102,10 @@ final class HttpClient {
 
         if (next.callback != null) {
             T result = stash;
+            Log.d(TAG, "Calling callback");
             handler.post(() -> {
-                if (result != null) {
-                    next.callback.accept(result);
-                }
+                Log.d(TAG, "Back on the main thread");
+                next.callback.accept(result);
             });
         }
     }
