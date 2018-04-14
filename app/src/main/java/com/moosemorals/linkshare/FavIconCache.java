@@ -8,23 +8,24 @@ import android.util.Log;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 final class FavIconCache {
     private static final String TAG = "FavIconCache";
-    private final Map<String, WeakReference<Bitmap>> cache = new HashMap<>();
-    private final LinkedList<QueueItem> queue = new LinkedList<>();
+    private final Map<String, CacheItem> cache = new HashMap<>();
+    private final LinkedList<String> queue = new LinkedList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable backgroundRunnable = () -> {
         while (!Thread.interrupted()) {
             try {
-                QueueItem next;
+                String next;
                 synchronized (queue) {
                     while (queue.isEmpty()) {
                         queue.wait();
@@ -39,14 +40,32 @@ final class FavIconCache {
         }
     };
 
-    private void handleNext(QueueItem next) {
-        Bitmap bm = getBitmap(next.url);
-        if (bm != null) {
-            doOnUiThread(() -> next.callback.accept(bm));
+    private void handleNext(String next) {
+        CacheItem cacheItem;
+        synchronized (cache) {
+            cacheItem = cache.get(next);
+        }
+
+        if (cacheItem.fetched) {
+            doOnUiThread(() -> {
+                for (Iterator<BitmapConsumer> iterator = cacheItem.consumers.iterator(); iterator.hasNext(); ) {
+                    BitmapConsumer consumer = iterator.next();
+                    consumer.accept(cacheItem.bitmap);
+                    iterator.remove();
+                }
+            });
+
         } else {
-            new IconFetcher().doFetch(next.url, bitmap -> {
-                storeBitmap(next.url, bitmap);
-                doOnUiThread(() -> next.callback.accept(bitmap));
+            cacheItem.bitmap = doFetch(next);
+            synchronized (cache) {
+                cacheItem.fetched = true;
+            }
+            doOnUiThread(() -> {
+                for (Iterator<BitmapConsumer> iterator = cacheItem.consumers.iterator(); iterator.hasNext(); ) {
+                    BitmapConsumer consumer = iterator.next();
+                    consumer.accept(cacheItem.bitmap);
+                    iterator.remove();
+                }
             });
         }
     }
@@ -55,76 +74,65 @@ final class FavIconCache {
         handler.post(r);
     }
 
-    private void storeBitmap(String url, Bitmap bitmap) {
-        synchronized (cache) {
-            cache.put(url, new WeakReference<>(bitmap));
-        }
-    }
-
-    private Bitmap getBitmap(String url) {
-        synchronized (cache) {
-            WeakReference<Bitmap> bm = cache.get(url);
-            if (bm != null) {
-                Bitmap result = bm.get();
-                if (result == null) {
-                    cache.remove(url);
-                }
-                return result;
-            }
-        }
-        return null;
-    }
-
     void start() {
         Thread backgroundThread = new Thread(backgroundRunnable, "FavIconCache");
         backgroundThread.start();
     }
 
-    void loadIcon(String url, Consumer<Bitmap> callback) {
-        synchronized (queue) {
-            queue.add(new QueueItem(url, callback));
-            queue.notifyAll();
+    void loadIcon(String url, BitmapConsumer callback) {
+        if (url == null || url.equals("undefined")) {
+            doOnUiThread(() -> callback.accept(null));
+            return;
         }
-    }
 
-    private static class QueueItem {
-        final String url;
-        final Consumer<Bitmap> callback;
-
-        QueueItem(String url, Consumer<Bitmap> callback) {
-            this.url = url;
-            this.callback = callback;
-        }
-    }
-
-    private static class IconFetcher {
-
-        private void doFetch(String target, Consumer<Bitmap> callback) {
-            try {
-                URL url = new URL(target);
-
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-                conn.setRequestMethod("GET");
-                conn.setDoOutput(false);
-                conn.setFixedLengthStreamingMode(0);
-                try {
-                    Log.d(TAG, "Connecting");
-                    conn.connect();
-                    Log.d(TAG, "Connected, trying to read result");
-
-                    try (BufferedInputStream in = new BufferedInputStream(conn.getInputStream())) {
-                        callback.accept(BitmapFactory.decodeStream(in));
-                    }
-                } finally {
-                    conn.disconnect();
+        synchronized (cache) {
+            CacheItem item = cache.get(url);
+            if (item == null) {
+                synchronized (queue) {
+                    queue.add(url);
+                    queue.notifyAll();
                 }
-
-            } catch (IOException e) {
-                Log.w(TAG, "Can't get FavIcon: " + target, e);
-                callback.accept(null);
+                cache.put(url, new CacheItem());
+            } else if (item.fetched) {
+                doOnUiThread(() -> callback.accept(item.bitmap));
+            } else {
+                item.consumers.add(callback);
             }
         }
+    }
 
+    private Bitmap doFetch(String target) {
+        try {
+            URL url = new URL(target);
+
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+            conn.setRequestMethod("GET");
+            conn.setDoOutput(false);
+            conn.setFixedLengthStreamingMode(0);
+            try {
+                Log.d(TAG, "Connecting");
+                conn.connect();
+                Log.d(TAG, "Connected, trying to read result");
+
+                try (BufferedInputStream in = new BufferedInputStream(conn.getInputStream())) {
+                    return BitmapFactory.decodeStream(in);
+                }
+            } finally {
+                conn.disconnect();
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Can't get FavIcon: " + target, e);
+        }
+        return null;
+    }
+
+    interface BitmapConsumer extends Consumer<Bitmap> {
+    }
+
+    private static class CacheItem {
+        volatile boolean fetched = false;
+        Bitmap bitmap;
+        List<BitmapConsumer> consumers = new LinkedList<>();
     }
 }

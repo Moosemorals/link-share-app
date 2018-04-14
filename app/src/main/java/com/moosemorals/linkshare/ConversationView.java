@@ -283,12 +283,10 @@ public final class ConversationView extends View {
             icon = favIcons.get(favIconUrl);
         }
 
-        Log.d(TAG, "Checking for icon");
         if (icon == null || (icon.bitmap == null && !icon.tried)) {
             favIconCache.loadIcon(favIconUrl, bm -> {
                 synchronized (favIcons) {
                     favIcons.put(favIconUrl, new BitmapData(bm, true));
-                    Log.d(TAG, "Got an icon");
                     invalidate();
                 }
             });
