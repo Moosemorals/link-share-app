@@ -2,6 +2,7 @@ package com.moosemorals.linkshare;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -37,6 +38,7 @@ public final class ConversationView extends View {
     private static final float BUBBLE_MARGIN = ICON_SIZE / 3f;
     private static final float BUBBLE_RADIUS = 2 * ICON_SIZE / 3f;
     private static final int WINDOW_MARGIN = ICON_SIZE / 4;
+    private static final int SHADDOW_OFFSET = 8;
 
     private static final int BUBBLE_COLOR_MINE = 0xffe6e6fa;
     private static final int BUBBLE_COLOR_OTHER = 0xffcecef5;
@@ -120,6 +122,7 @@ public final class ConversationView extends View {
 
         shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowPaint.setColor(0x42000000);
+        shadowPaint.setMaskFilter(new BlurMaskFilter(SHADDOW_OFFSET, BlurMaskFilter.Blur.NORMAL));
 
         gestureDetector = new GestureDetector(getContext(), new BasicGestureListener());
     }
@@ -149,9 +152,7 @@ public final class ConversationView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        Log.d(TAG, "onDraw");
         if (groups.isEmpty()) {
-            Log.d(TAG, "But nothing to draw");
             return;
         }
 
@@ -178,9 +179,9 @@ public final class ConversationView extends View {
             }
 
             bubbleRect.set(0, 0, bubbleWidth, bubbleHeight);
-            canvas.translate(5, 5);
+            canvas.translate(SHADDOW_OFFSET, SHADDOW_OFFSET);
             canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, shadowPaint);
-            canvas.translate(-5, -5);
+            canvas.translate(-SHADDOW_OFFSET, -SHADDOW_OFFSET);
             canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bp);
 
             canvas.translate(BUBBLE_MARGIN, BUBBLE_MARGIN);
@@ -214,9 +215,9 @@ public final class ConversationView extends View {
                 next.textLayout.draw(canvas);
 
                 canvas.restore();
-                next.bounds.top = currentTop;
+                next.bounds.top = currentTop- LINE_SPACING / 2;
                 int textHeight = next.textLayout.getHeight();
-                next.bounds.bottom = currentTop + textHeight;
+                next.bounds.bottom = currentTop + textHeight + LINE_SPACING / 2;
 
                 currentTop += textHeight + LINE_SPACING;
                 canvas.translate(0, textHeight + LINE_SPACING);
@@ -232,24 +233,20 @@ public final class ConversationView extends View {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = View.MeasureSpec.getSize(widthMeasureSpec);
 
-        Log.d(TAG, "Setting size to " + width + "x" + height);
-
         setMeasuredDimension(width, (int) height);
     }
 
     private void calculateStuff() {
         if (links.isEmpty()) {
-            Log.d(TAG, "But nothing to draw");
             return;
         }
 
         if (sharedWith == null) {
-            Log.d(TAG, "Not shared with anyone");
+            return;
         }
 
         final int width = getWidth() - (WINDOW_MARGIN * 2);
         if (width < 0) {
-            Log.d(TAG, "No width to draw in");
             return;
         }
 
@@ -261,7 +258,6 @@ public final class ConversationView extends View {
         filteredList.removeIf(l -> !l.isPartOfConversation(user, sharedWith));
 
         if (filteredList.isEmpty()) {
-            Log.d(TAG, "Nothing to do after filter");
             return;
         }
 
@@ -305,7 +301,6 @@ public final class ConversationView extends View {
             try {
                 JSONObject json = LinkShareApplication.readStream(new InputStreamReader(in));
                 if (json.has("success")) {
-                    Log.d(TAG, "Got some links");
                     List<Link> parsed = parseLinks(json.getJSONArray("success"));
 
                     parsed.sort(Comparator.comparingLong(Link::getCreated));
@@ -325,7 +320,6 @@ public final class ConversationView extends View {
             }
             return null;
         }, x -> {
-            Log.d(TAG, "Requesting layout");
             invalidate();
         });
     }
@@ -340,7 +334,6 @@ public final class ConversationView extends View {
 
     public void setSharedWith(String sharedWith) {
         this.sharedWith = sharedWith;
-        Log.d(TAG, "Now looking at " + sharedWith);
         calculateStuff();
         invalidate();
     }

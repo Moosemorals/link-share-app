@@ -27,7 +27,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".LinksActivity" />
+        <activity android:name=".LinksActivity"
+            android:hardwareAccelerated="false"
+            />
         <activity android:name=".ShareActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
