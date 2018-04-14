@@ -38,7 +38,8 @@ public final class ConversationView extends View {
     private static final float BUBBLE_RADIUS = 2 * ICON_SIZE / 3f;
     private static final int WINDOW_MARGIN = ICON_SIZE / 4;
 
-    private static final int BUBBLE_COLOR = 0xffe6e6fa;
+    private static final int BUBBLE_COLOR_MINE = 0xffe6e6fa;
+    private static final int BUBBLE_COLOR_OTHER = 0xffcecef5;
 
     private static final int TEXT_SIZE = 48;
     private final List<Link> links = new ArrayList<>();
@@ -60,7 +61,7 @@ public final class ConversationView extends View {
     private HttpClient httpClient;
     private FavIconCache favIconCache;
     private TextPaint tp;
-    private Paint iconPaint, bubblePaint, shaddowPaint;
+    private Paint iconPaint, bubblePaintMine, bubblePaintOther, shadowPaint;
     private String user;
     private Rect iconSrc, iconDest;
     private RectF bubbleRect;
@@ -118,14 +119,17 @@ public final class ConversationView extends View {
         tp.setColor(0xff000000);
         tp.setTextSize(TEXT_SIZE);
 
-        bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bubblePaint.setColor(BUBBLE_COLOR);
+        bubblePaintMine = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bubblePaintMine.setColor(BUBBLE_COLOR_MINE);
+
+        bubblePaintOther = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bubblePaintOther.setColor(BUBBLE_COLOR_OTHER);
 
         iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         iconPaint.setColor(0xffe0e0e0);
 
-        shaddowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shaddowPaint.setColor(0x42000000);
+        shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadowPaint.setColor(0x42000000);
 
         gestureDetector = new GestureDetector(getContext(), detectorFilter);
     }
@@ -174,18 +178,20 @@ public final class ConversationView extends View {
             float bubbleHeight = group.getHeight() + BUBBLE_MARGIN * 2;
 
             canvas.save();
-
+            Paint bp;
             if (group.isMine()) {
                 canvas.translate(width - bubbleWidth, offset - BUBBLE_MARGIN);
+                bp = bubblePaintMine;
             } else {
-                canvas.translate(0, offset - BUBBLE_MARGIN);
+                canvas.translate( 0, offset - BUBBLE_MARGIN);
+                bp = bubblePaintOther;
             }
 
             bubbleRect.set(0, 0, bubbleWidth, bubbleHeight);
             canvas.translate(5, 5);
-            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, shaddowPaint);
+            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, shadowPaint);
             canvas.translate(-5, -5);
-            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bubblePaint);
+            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bp);
 
             canvas.translate(BUBBLE_MARGIN, BUBBLE_MARGIN);
 
@@ -342,7 +348,7 @@ public final class ConversationView extends View {
                     layoutText(link, width - (ICON_SIZE * 3), tp)
             );
             links.add(d);
-            groupHeight += d.textLayout.getHeight() + LINE_SPACING;
+            groupHeight += d.textLayout.getHeight();
             if (groupWidth < d.textLayout.getLineWidth(0)) {
                 groupWidth = d.textLayout.getLineWidth(0);
             }
@@ -353,7 +359,7 @@ public final class ConversationView extends View {
         }
 
         float getHeight() {
-            return groupHeight;
+            return groupHeight + (links.size() - 1) * LINE_SPACING;
         }
 
         float getWidth() {
