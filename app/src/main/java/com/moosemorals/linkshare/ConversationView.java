@@ -1,6 +1,5 @@
 package com.moosemorals.linkshare;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -44,9 +43,7 @@ public final class ConversationView extends View {
     private static final int TEXT_SIZE = 48;
     private final List<Link> links = new ArrayList<>();
     private final Map<String, BitmapData> favIcons = new HashMap<>();
-    private final List<LinkData> linkData = new LinkedList<>();
-    private final List<LinkData> group = new LinkedList<>();
-    private final List<List<LinkData>> groups = new LinkedList<>();
+    private final List<GroupData> groups = new LinkedList<>();
     private final GestureDetector.SimpleOnGestureListener detectorFilter = new GestureDetector.SimpleOnGestureListener() {
         @Override
         public boolean onDown(MotionEvent e) {
@@ -67,6 +64,7 @@ public final class ConversationView extends View {
     private String user;
     private Rect iconSrc, iconDest;
     private RectF bubbleRect;
+    private float height = -1;
 
     public ConversationView(Context context) {
         super(context);
@@ -86,6 +84,20 @@ public final class ConversationView extends View {
     public ConversationView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
         init();
+    }
+
+    private static StaticLayout layoutText(Link link, int width, TextPaint tp) {
+        String title = link.getDisplayText();
+        StaticLayout.Builder builder = StaticLayout.Builder.obtain(
+                title,
+                0,
+                title.length(),
+                tp,
+                width);
+        builder.setMaxLines(1);
+        builder.setEllipsize(TextUtils.TruncateAt.END);
+
+        return builder.build();
     }
 
     void setHttpClient(HttpClient client) {
@@ -125,9 +137,11 @@ public final class ConversationView extends View {
             float clickX = event.getX();
             float clickY = event.getY();
 
-            for (LinkData l : linkData) {
-                if (l.bounds.contains(clickX, clickY)) {
-                    Log.d(TAG, "Clicked on " + l.link.getDisplayText());
+            for (GroupData group: groups) {
+                for (LinkData l : group.links) {
+                    if (l.bounds.contains(clickX, clickY)) {
+                        Log.d(TAG, "Clicked on " + l.link.getDisplayText());
+                    }
                 }
             }
         }
@@ -139,11 +153,10 @@ public final class ConversationView extends View {
         calculateStuff();
     }
 
-    @SuppressLint("DrawAllocation")
     @Override
     protected void onDraw(Canvas canvas) {
         Log.d(TAG, "onDraw");
-        if (linkData.isEmpty()) {
+        if (groups.isEmpty()) {
             Log.d(TAG, "But nothing to draw");
             return;
         }
@@ -154,58 +167,36 @@ public final class ConversationView extends View {
 
         canvas.translate(WINDOW_MARGIN, WINDOW_MARGIN);
 
-        Log.d(TAG, "Displaying: " + linkData.size());
-        int index = 0;
-        do {
-            group.clear();
+        for (GroupData group : groups) {
 
-            LinkData next = linkData.get(index++);
+            float textWidth = group.getWidth();
+            float bubbleWidth = textWidth + ICON_SIZE + BUBBLE_MARGIN * 2;
+            float bubbleHeight = group.getHeight() + BUBBLE_MARGIN * 2;
 
-            float groupWidth = next.textLayout.getLineWidth(0);
-            int groupHeight = next.textLayout.getHeight();
-            boolean mine = next.mine;
-            group.add(next);
-
-            while (index < linkData.size() && linkData.get(index).mine == group.get(0).mine) {
-                next = linkData.get(index++);
-                mine = next.mine;
-                groupHeight += next.textLayout.getHeight() + LINE_SPACING;
-                if (next.textLayout.getLineWidth(0) > groupWidth) {
-                    groupWidth = next.textLayout.getLineWidth(0);
-                }
-                group.add(next);
-            }
-
-            float textWidth = groupWidth;
-            groupWidth += ICON_SIZE + BUBBLE_MARGIN * 2;
-
-            // Draw bubble
             canvas.save();
-            if (mine) {
-                canvas.translate(width - groupWidth, offset - BUBBLE_MARGIN);
+
+            if (group.isMine()) {
+                canvas.translate(width - bubbleWidth, offset - BUBBLE_MARGIN);
             } else {
                 canvas.translate(0, offset - BUBBLE_MARGIN);
             }
 
-            bubbleRect.set(0, 0, groupWidth, groupHeight + BUBBLE_MARGIN * 2);
+            bubbleRect.set(0, 0, bubbleWidth, bubbleHeight);
             canvas.translate(5, 5);
             canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, shaddowPaint);
             canvas.translate(-5, -5);
             canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bubblePaint);
 
-
-
             canvas.translate(BUBBLE_MARGIN, BUBBLE_MARGIN);
 
             currentTop += BUBBLE_MARGIN;
+            for (LinkData next : group.links) {
+                BitmapData bitmapData = getIcon(next.link);
 
-            for (LinkData d : group) {
-                BitmapData bitmapData =  getIcon(d.link);
                 canvas.save();
-                if (mine) {
+                if (group.isMine()) {
                     canvas.translate(textWidth, 0);
                 }
-
                 if (bitmapData != null && bitmapData.bitmap != null) {
                     Bitmap icon = bitmapData.bitmap;
                     iconSrc.set(0, 0, icon.getWidth(), icon.getHeight());
@@ -213,67 +204,70 @@ public final class ConversationView extends View {
                 } else {
                     canvas.drawRect(iconDest, iconPaint);
                 }
-
                 canvas.restore();
+
                 canvas.save();
-                if (mine) {
-                    d.bounds.left = width - groupWidth;
-                    d.bounds.right = width;
+                if (group.isMine()) {
+                    next.bounds.left = width - bubbleWidth;
+                    next.bounds.right = width;
                 } else {
-                    d.bounds.left = 0;
-                    d.bounds.right = groupWidth;
+                    next.bounds.left = 0;
+                    next.bounds.right = bubbleWidth;
                     canvas.translate(ICON_SIZE, 0);
                 }
-                d.textLayout.draw(canvas);
+                next.textLayout.draw(canvas);
+
                 canvas.restore();
+                next.bounds.top = currentTop;
+                int textHeight = next.textLayout.getHeight();
+                next.bounds.bottom = currentTop + textHeight;
 
-                d.bounds.top = currentTop;
-                d.bounds.bottom = currentTop + d.textLayout.getHeight();
-
-                currentTop += d.textLayout.getHeight() + LINE_SPACING;
-
-                canvas.translate(0, d.textLayout.getHeight() + LINE_SPACING);
+                currentTop += textHeight + LINE_SPACING;
+                canvas.translate(0, textHeight + LINE_SPACING);
             }
-
-            offset += groupHeight + BUBBLE_MARGIN * 3;
+            offset += bubbleHeight + BUBBLE_MARGIN ;
             currentTop = offset;
 
             canvas.restore();
-        } while (index < linkData.size());
+        }
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = View.MeasureSpec.getSize(widthMeasureSpec);
-        int height = View.MeasureSpec.getSize(heightMeasureSpec);
 
         Log.d(TAG, "Setting size to " + width + "x" + height);
 
-        setMeasuredDimension(width, height);
+        setMeasuredDimension(width, (int) height);
     }
 
     private void calculateStuff() {
-
-        int width = getWidth() - WINDOW_MARGIN * 2;
-
-        if (width < 0) {
-            Log.w(TAG, "Negative width, skip it");
+        if (links.isEmpty()) {
+            Log.d(TAG, "But nothing to draw");
             return;
         }
 
-        linkData.clear();
-        synchronized (links) {
-            for (Link link : links) {
-                boolean mine = user.equals(link.getFrom());
-                LinkData ld = new LinkData(
-                        link,
-                        mine,
-                        layoutText(link, width - (ICON_SIZE * 3))
-                );
-                linkData.add(ld);
-            }
+        final int width = getWidth() - (WINDOW_MARGIN * 2);
+        if (width < 0) {
+            Log.d(TAG, "No width to draw in");
+            return;
         }
-        Log.d(TAG, "Size changed, " + links.size() + " links, " + linkData.size() + " data");
+
+        height = ICON_SIZE + WINDOW_MARGIN;
+
+        int index = 0;
+        do {
+            GroupData group = new GroupData();
+
+            do {
+                group.addLink(user, width, tp, links.get(index++));
+            }
+            while (index < links.size() && user.equals(links.get(index).getFrom()) == group.isMine());
+
+            groups.add(group);
+            height += group.getHeight() + BUBBLE_MARGIN * 3;
+
+        } while (index < links.size());
     }
 
     private BitmapData getIcon(Link link) {
@@ -294,20 +288,6 @@ public final class ConversationView extends View {
             });
         }
         return icon;
-    }
-
-    private StaticLayout layoutText(Link link, int width) {
-        String title = link.getDisplayText();
-        StaticLayout.Builder builder = StaticLayout.Builder.obtain(
-                title,
-                0,
-                title.length(),
-                tp,
-                width);
-        builder.setMaxLines(1);
-        builder.setEllipsize(TextUtils.TruncateAt.END);
-
-        return builder.build();
     }
 
     void loadLinks() {
@@ -347,6 +327,39 @@ public final class ConversationView extends View {
             result.add(new Link(json.getJSONObject(i)));
         }
         return result;
+    }
+
+    private static class GroupData {
+        List<LinkData> links = new LinkedList<>();
+        int groupHeight = 0;
+        float groupWidth = 0;
+
+        void addLink(String user, int width, TextPaint tp, Link link) {
+            boolean mine = user.equals(link.getFrom());
+            LinkData d = new LinkData(
+                    link,
+                    mine,
+                    layoutText(link, width - (ICON_SIZE * 3), tp)
+            );
+            links.add(d);
+            groupHeight += d.textLayout.getHeight() + LINE_SPACING;
+            if (groupWidth < d.textLayout.getLineWidth(0)) {
+                groupWidth = d.textLayout.getLineWidth(0);
+            }
+        }
+
+        boolean isMine() {
+            return links.get(0).mine;
+        }
+
+        float getHeight() {
+            return groupHeight;
+        }
+
+        float getWidth() {
+            return groupWidth;
+        }
+
     }
 
     private static class BitmapData {
