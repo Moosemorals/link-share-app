@@ -45,17 +45,6 @@ public final class ConversationView extends View {
     private final List<Link> links = new ArrayList<>();
     private final Map<String, BitmapData> favIcons = new HashMap<>();
     private final List<GroupData> groups = new LinkedList<>();
-    private final GestureDetector.SimpleOnGestureListener detectorFilter = new GestureDetector.SimpleOnGestureListener() {
-        @Override
-        public boolean onDown(MotionEvent e) {
-            return true;
-        }
-
-        @Override
-        public boolean onSingleTapConfirmed(MotionEvent e) {
-            return true;
-        }
-    };
 
     private GestureDetector gestureDetector;
     private HttpClient httpClient;
@@ -66,6 +55,7 @@ public final class ConversationView extends View {
     private Rect iconSrc, iconDest;
     private RectF bubbleRect;
     private float height = -1;
+    private String sharedWith;
 
     public ConversationView(Context context) {
         super(context);
@@ -131,7 +121,7 @@ public final class ConversationView extends View {
         shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowPaint.setColor(0x42000000);
 
-        gestureDetector = new GestureDetector(getContext(), detectorFilter);
+        gestureDetector = new GestureDetector(getContext(), new BasicGestureListener());
     }
 
     @Override
@@ -141,7 +131,7 @@ public final class ConversationView extends View {
             float clickX = event.getX();
             float clickY = event.getY();
 
-            for (GroupData group: groups) {
+            for (GroupData group : groups) {
                 for (LinkData l : group.links) {
                     if (l.bounds.contains(clickX, clickY)) {
                         Log.d(TAG, "Clicked on " + l.link.getDisplayText());
@@ -183,7 +173,7 @@ public final class ConversationView extends View {
                 canvas.translate(width - bubbleWidth, offset - BUBBLE_MARGIN);
                 bp = bubblePaintMine;
             } else {
-                canvas.translate( 0, offset - BUBBLE_MARGIN);
+                canvas.translate(0, offset - BUBBLE_MARGIN);
                 bp = bubblePaintOther;
             }
 
@@ -231,7 +221,7 @@ public final class ConversationView extends View {
                 currentTop += textHeight + LINE_SPACING;
                 canvas.translate(0, textHeight + LINE_SPACING);
             }
-            offset += bubbleHeight + BUBBLE_MARGIN ;
+            offset += bubbleHeight + BUBBLE_MARGIN;
             currentTop = offset;
 
             canvas.restore();
@@ -253,6 +243,10 @@ public final class ConversationView extends View {
             return;
         }
 
+        if (sharedWith == null) {
+            Log.d(TAG, "Not shared with anyone");
+        }
+
         final int width = getWidth() - (WINDOW_MARGIN * 2);
         if (width < 0) {
             Log.d(TAG, "No width to draw in");
@@ -261,19 +255,30 @@ public final class ConversationView extends View {
 
         height = ICON_SIZE + WINDOW_MARGIN;
 
+        groups.clear();
+
+        List<Link> filteredList = new LinkedList<>(links);
+        filteredList.removeIf(l -> !l.isPartOfConversation(user, sharedWith));
+
+        if (filteredList.isEmpty()) {
+            Log.d(TAG, "Nothing to do after filter");
+            return;
+        }
+
+
         int index = 0;
         do {
             GroupData group = new GroupData();
 
             do {
-                group.addLink(user, width, tp, links.get(index++));
+                group.addLink(user, width, tp, filteredList.get(index++));
             }
-            while (index < links.size() && user.equals(links.get(index).getFrom()) == group.isMine());
+            while (index < filteredList.size() && user.equals(filteredList.get(index).getFrom()) == group.isMine());
 
             groups.add(group);
             height += group.getHeight() + BUBBLE_MARGIN * 3;
 
-        } while (index < links.size());
+        } while (index < filteredList.size());
     }
 
     private BitmapData getIcon(Link link) {
@@ -331,6 +336,13 @@ public final class ConversationView extends View {
             result.add(new Link(json.getJSONObject(i)));
         }
         return result;
+    }
+
+    public void setSharedWith(String sharedWith) {
+        this.sharedWith = sharedWith;
+        Log.d(TAG, "Now looking at " + sharedWith);
+        calculateStuff();
+        invalidate();
     }
 
     private static class GroupData {

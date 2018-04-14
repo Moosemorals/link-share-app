@@ -25,11 +25,18 @@ public class LinksActivity extends Activity {
             throw new RuntimeException("Shouldn't get here with a null username");
         }
 
-        TextView text = findViewById(R.id.links_hello);
-
-        text.setText("Hello " + username);
-
         conversationView = findViewById(R.id.links_convo);
+        TabBar tabBar = findViewById(R.id.links_tabs);
+
+        tabBar.addTab("Osric");
+        tabBar.addTab("Moose");
+        tabBar.addTab("Shinju");
+        tabBar.addTab("Search");
+        tabBar.addTab("Settings");
+
+        tabBar.addTabChangedListener(newTabName -> conversationView.setSharedWith(newTabName));
+
+        conversationView.setSharedWith("Osric");
 
         conversationView.setHttpClient(((LinkShareApplication)getApplication()).getHttpClient());
         conversationView.setFavIconCache(((LinkShareApplication)getApplication()).getFavIconCache());
