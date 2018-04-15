@@ -20,13 +20,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
 
-final class HttpClient {
-    private static final String TAG = "HttpClient";
+final class Backend {
+    private static final String TAG = "Backend";
     private final Map<String, WeakReference<Bitmap>> cache = new HashMap<>();
     private final LinkedList<QueueItem> queue = new LinkedList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Context context;
+    private final SSLSocketFactory sslSocketFactory;
     private final Runnable backgroundRunnable = () -> {
         while (!Thread.interrupted()) {
             try {
@@ -50,8 +52,9 @@ final class HttpClient {
         return new URL(LinkShareApplication.BASEURL + target + "?_t=" + token);
     }
 
-    HttpClient(Context context) {
+    Backend(Context context) throws IOException {
         this.context = context;
+        sslSocketFactory = LinkShareApplication.getSSLSocketFactory(context);
     }
 
     void start() {
@@ -80,15 +83,13 @@ final class HttpClient {
 
             HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
 
-            conn.setSSLSocketFactory(LinkShareApplication.getSSLSocketFactory(context));
+            conn.setSSLSocketFactory(sslSocketFactory);
 
             conn.setRequestMethod("GET");
             conn.setDoOutput(false);
             conn.setFixedLengthStreamingMode(0);
             try {
-                Log.d(TAG, "Connecting to " + url.toExternalForm());
                 conn.connect();
-                Log.d(TAG, "Connected, trying to read result");
 
                 try (BufferedInputStream in = new BufferedInputStream(conn.getInputStream())) {
                     stash = next.process.apply(in);
@@ -102,9 +103,7 @@ final class HttpClient {
 
         if (next.callback != null) {
             T result = stash;
-            Log.d(TAG, "Calling callback");
             handler.post(() -> {
-                Log.d(TAG, "Back on the main thread");
                 next.callback.accept(result);
             });
         }

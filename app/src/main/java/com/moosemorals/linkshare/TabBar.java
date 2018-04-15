@@ -19,14 +19,21 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import static com.moosemorals.linkshare.ConversationView.ICON_SIZE;
+import static com.moosemorals.linkshare.ConversationView.SHADOW_COLOUR;
+import static com.moosemorals.linkshare.ConversationView.SHADOW_OFFSET;
+import static com.moosemorals.linkshare.ConversationView.SHADOW_RADIUS;
+
 public final class TabBar extends View {
     private static final String TAG = "TabBar";
     private static final int TAB_HEIGHT = 80;
+    private static final int TAB_SELECTED_COLOR = 0xffffffff;
+    private static final int TAB_UNSELECTED_COLOR = 0xffe0e0e0;
     private final List<TabData> tabs = new LinkedList<>();
     private final Set<TabChangedListener> tabChangedListeners = new HashSet<>();
 
     private RectF tabRectUpper, tabRectLower;
-    private Paint unselectedPaint, selectedPaint;
+    private Paint tabBackgroundPaint;
     private TextPaint textPaint;
     private String selectedTab;
     private GestureDetector gestureDetector;
@@ -55,13 +62,10 @@ public final class TabBar extends View {
         tabRectUpper = new RectF(0, 0, 0, TAB_HEIGHT);
         tabRectLower = new RectF(0, TAB_HEIGHT / 2, 0, TAB_HEIGHT);
 
-        setBackgroundColor(0x42000000);
+        setBackgroundColor(getResources().getColor(R.color.background));
 
-        unselectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        unselectedPaint.setColor(0xffe0e0e0);
+        tabBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-        selectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        selectedPaint.setColor(0xffffffff);
 
         textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(0xff000000);
@@ -77,13 +81,13 @@ public final class TabBar extends View {
             float clickX = event.getX();
             float clickY = event.getY();
 
-            int tabWidth = getWidth() / tabs.size();
 
             for (int i = 0; i < tabs.size(); i++) {
                 TabData tab = tabs.get(i);
-                if (clickX > tabWidth * i && clickX < tabWidth * (i + 1)) {
-                    selectTab(tab.name);
+                if (tab.bounds.contains(clickX, clickY)) {
+                    setActiveTab(tab.name);
                     invalidate();
+                    performClick();
                 }
             }
         }
@@ -93,27 +97,39 @@ public final class TabBar extends View {
 
     @Override
     public void onDraw(Canvas canvas) {
-        Paint tabPaint;
-        int tabWidth = getWidth() / tabs.size();
-        tabRectUpper.right = tabWidth;
-        tabRectLower.right = tabWidth;
+        float currentLeft = 0;
+        float maxWidth = (getWidth() - (ConversationView.WINDOW_MARGIN * 2)) / tabs.size();
+
+        canvas.translate(ConversationView.WINDOW_MARGIN, SHADOW_RADIUS);
 
         for (TabData tab : tabs) {
-
-            if (tab.name.equals(selectedTab)) {
-                tabPaint = selectedPaint;
-            } else {
-                tabPaint = unselectedPaint;
-            }
-
-            canvas.drawRoundRect(tabRectUpper, 32, 32, tabPaint);
-            canvas.drawRect(tabRectLower, tabPaint);
-
             StaticLayout text = StaticLayout.Builder
-                    .obtain(tab.name, 0, tab.name.length(), textPaint, tabWidth)
+                    .obtain(tab.name, 0, tab.name.length(), textPaint, (int) maxWidth)
                     .setMaxLines(1)
                     .setEllipsize(TextUtils.TruncateAt.END)
                     .build();
+
+            float tabWidth = text.getLineWidth(0) + ICON_SIZE;
+
+
+            tab.bounds.left = currentLeft + SHADOW_RADIUS;
+            tab.bounds.top = 0;
+            tab.bounds.right = currentLeft + tabWidth - SHADOW_RADIUS;
+            tab.bounds.bottom = TAB_HEIGHT;
+
+            tabRectUpper.right = tabWidth;
+            tabRectLower.right = tabWidth;
+
+            if (tab.name.equals(selectedTab)) {
+                tabBackgroundPaint.setColor(TAB_SELECTED_COLOR);
+            } else {
+                tabBackgroundPaint.setColor(TAB_UNSELECTED_COLOR);
+            }
+
+            tabBackgroundPaint.setShadowLayer(SHADOW_RADIUS, SHADOW_OFFSET, SHADOW_OFFSET, SHADOW_COLOUR);
+            canvas.drawRoundRect(tabRectUpper, 32, 32, tabBackgroundPaint);
+            tabBackgroundPaint.clearShadowLayer();
+            canvas.drawRect(tabRectLower, tabBackgroundPaint);
 
             canvas.save();
             canvas.translate(tabWidth / 2 - text.getLineWidth(0) / 2, TAB_HEIGHT / 2 - text.getHeight() / 2);
@@ -122,7 +138,18 @@ public final class TabBar extends View {
             canvas.restore();
 
             canvas.translate(tabWidth, 0);
+            currentLeft += tabWidth;
         }
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int width = View.MeasureSpec.getSize(widthMeasureSpec);
+        int height = TAB_HEIGHT + SHADOW_RADIUS;
+
+        Log.d(TAG, "Setting size to " + width + "x" + height);
+
+        setMeasuredDimension(width, height);
     }
 
     void addTabChangedListener(TabChangedListener l) {
@@ -145,24 +172,23 @@ public final class TabBar extends View {
         }
     }
 
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int width = View.MeasureSpec.getSize(widthMeasureSpec);
-        int height = TAB_HEIGHT;
-
-        Log.d(TAG, "Setting size to " + width + "x" + height);
-
-        setMeasuredDimension(width, height);
+    void addFirstTab(String name) {
+        addTab(name, 0);
     }
 
     void addTab(String name) {
-        tabs.add(new TabData(name));
+        addTab(name, tabs.size());
+    }
+
+    void addTab(String name, int index) {
+        tabs.add(index, new TabData(name));
         if (selectedTab == null) {
             selectedTab = name;
         }
+        postInvalidate();
     }
 
-    void selectTab(String name) {
+    void setActiveTab(String name) {
         selectedTab = name;
         notifyListeners(name);
     }
@@ -173,6 +199,7 @@ public final class TabBar extends View {
 
     private static class TabData {
         String name;
+        RectF bounds = new RectF(0,0,0,0);
 
         TabData(String name) {
             this.name = name;

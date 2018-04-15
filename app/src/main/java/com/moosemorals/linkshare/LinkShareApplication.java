@@ -3,7 +3,6 @@ package com.moosemorals.linkshare;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -22,7 +21,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.function.Consumer;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -39,7 +37,7 @@ public final class LinkShareApplication extends Application {
     private static final String PREFS_NAME = LinkShareApplication.class.getName();
 
     private FavIconCache favIconCache;
-    private HttpClient httpClient;
+    private Backend httpClient;
 
     @Override
     public void onCreate() {
@@ -47,11 +45,15 @@ public final class LinkShareApplication extends Application {
         favIconCache = new FavIconCache();
         favIconCache.start();
 
-        httpClient = new HttpClient(this);
+        try {
+            httpClient = new Backend(this);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         httpClient.start();
     }
 
-    HttpClient getHttpClient() {
+    Backend getHttpClient() {
         return httpClient;
     }
 

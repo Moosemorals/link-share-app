@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical" android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:orientation="vertical">
 
     <com.moosemorals.linkshare.TabBar
+        android:layout_marginTop="6dp"
         android:id="@+id/links_tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
@@ -11,15 +14,12 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="true"
+        android:fillViewport="true">
 
-        >
         <com.moosemorals.linkshare.ConversationView
-        android:id="@+id/links_convo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        />
-
+            android:id="@+id/links_convo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
     </ScrollView>
 
 </LinearLayout>

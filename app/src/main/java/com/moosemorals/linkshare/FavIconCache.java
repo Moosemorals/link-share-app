@@ -111,10 +111,7 @@ final class FavIconCache {
             conn.setDoOutput(false);
             conn.setFixedLengthStreamingMode(0);
             try {
-                Log.d(TAG, "Connecting");
                 conn.connect();
-                Log.d(TAG, "Connected, trying to read result");
-
                 try (BufferedInputStream in = new BufferedInputStream(conn.getInputStream())) {
                     return BitmapFactory.decodeStream(in);
                 }

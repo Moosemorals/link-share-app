@@ -2,7 +2,6 @@ package com.moosemorals.linkshare;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -16,15 +15,8 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewOutlineProvider;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -33,26 +25,31 @@ import java.util.Map;
 public final class ConversationView extends View {
     private static final String TAG = "ConversationView";
 
-    private static final int ICON_SIZE = 64;
+     static final int ICON_SIZE = 64;
     private static final int LINE_SPACING = ICON_SIZE / 4;
     private static final float BUBBLE_MARGIN = ICON_SIZE / 3f;
     private static final float BUBBLE_RADIUS = 2 * ICON_SIZE / 3f;
-    private static final int WINDOW_MARGIN = ICON_SIZE / 4;
-    private static final int SHADDOW_OFFSET = 8;
+    private static final int BUBBLE_SHADOW_OFFSET = 8;
+    private static final int BUBBLE_SHADOW_RADIUS = ICON_SIZE / 4;
+    private static final int BUBBLE_SHADOW_COLOUR = 0x42000000;
+
+    static final int WINDOW_MARGIN = ICON_SIZE / 3;
+    static final int SHADOW_OFFSET = 0;
+    static final int SHADOW_RADIUS = ICON_SIZE / 3;
+    static final int SHADOW_COLOUR = 0xff000000;
 
     private static final int BUBBLE_COLOR_MINE = 0xffe6e6fa;
     private static final int BUBBLE_COLOR_OTHER = 0xffcecef5;
 
     private static final int TEXT_SIZE = 48;
-    private final List<Link> links = new ArrayList<>();
     private final Map<String, BitmapData> favIcons = new HashMap<>();
     private final List<GroupData> groups = new LinkedList<>();
 
     private GestureDetector gestureDetector;
-    private HttpClient httpClient;
     private FavIconCache favIconCache;
+    private List<Link> links;
     private TextPaint tp;
-    private Paint iconPaint, bubblePaintMine, bubblePaintOther, shadowPaint;
+    private Paint iconPaint, bubblePaint, whitePaint;
     private String user;
     private Rect iconSrc, iconDest;
     private RectF bubbleRect;
@@ -93,15 +90,13 @@ public final class ConversationView extends View {
         return builder.build();
     }
 
-    void setHttpClient(HttpClient client) {
-        this.httpClient = client;
-    }
-
     void setFavIconCache(FavIconCache cache) {
         this.favIconCache = cache;
     }
 
     private void init() {
+        setBackgroundColor(getResources().getColor(R.color.background));
+
         user = LinkShareApplication.getUserName(getContext());
         bubbleRect = new RectF();
         iconDest = new Rect(0, 0, ICON_SIZE, ICON_SIZE);
@@ -111,20 +106,19 @@ public final class ConversationView extends View {
         tp.setColor(0xff000000);
         tp.setTextSize(TEXT_SIZE);
 
-        bubblePaintMine = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bubblePaintMine.setColor(BUBBLE_COLOR_MINE);
-
-        bubblePaintOther = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bubblePaintOther.setColor(BUBBLE_COLOR_OTHER);
+        bubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bubblePaint.setShadowLayer(BUBBLE_SHADOW_RADIUS, BUBBLE_SHADOW_OFFSET, BUBBLE_SHADOW_OFFSET, BUBBLE_SHADOW_COLOUR);
 
         iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         iconPaint.setColor(0xffe0e0e0);
 
-        shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadowPaint.setColor(0x42000000);
-        shadowPaint.setMaskFilter(new BlurMaskFilter(SHADDOW_OFFSET, BlurMaskFilter.Blur.NORMAL));
+        whitePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        whitePaint.setColor(0xffffffff);
+        whitePaint.setShadowLayer(SHADOW_RADIUS, SHADOW_OFFSET, SHADOW_OFFSET, SHADOW_COLOUR);
 
         gestureDetector = new GestureDetector(getContext(), new BasicGestureListener());
+
+        setOutlineProvider(ViewOutlineProvider.PADDED_BOUNDS);
     }
 
     @Override
@@ -147,20 +141,29 @@ public final class ConversationView extends View {
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        calculateStuff();
+        calculateLayout();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
+
+        canvas.drawRect(
+                WINDOW_MARGIN,
+                0,
+                getWidth() - WINDOW_MARGIN,
+                getHeight() - (WINDOW_MARGIN + SHADOW_RADIUS),
+               whitePaint
+        );
+
         if (groups.isEmpty()) {
             return;
         }
 
-        final int width = canvas.getWidth() - (WINDOW_MARGIN * 2);
-        int offset = ICON_SIZE;
+        final int width = getWidth() - ((WINDOW_MARGIN * 2) + SHADOW_RADIUS * 2);
+        int offset = ICON_SIZE + getPaddingTop();
         float currentTop = offset - BUBBLE_MARGIN;
 
-        canvas.translate(WINDOW_MARGIN, WINDOW_MARGIN);
+        canvas.translate(WINDOW_MARGIN + SHADOW_RADIUS, 0);
 
         for (GroupData group : groups) {
 
@@ -169,20 +172,21 @@ public final class ConversationView extends View {
             float bubbleHeight = group.getHeight() + BUBBLE_MARGIN * 2;
 
             canvas.save();
-            Paint bp;
             if (group.isMine()) {
                 canvas.translate(width - bubbleWidth, offset - BUBBLE_MARGIN);
-                bp = bubblePaintMine;
+                bubblePaint.setColor(BUBBLE_COLOR_MINE);
             } else {
                 canvas.translate(0, offset - BUBBLE_MARGIN);
-                bp = bubblePaintOther;
+                bubblePaint.setColor(BUBBLE_COLOR_OTHER);
             }
 
             bubbleRect.set(0, 0, bubbleWidth, bubbleHeight);
-            canvas.translate(SHADDOW_OFFSET, SHADDOW_OFFSET);
+            /*
+            canvas.translate(SHADOW_OFFSET, SHADOW_OFFSET);
             canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, shadowPaint);
-            canvas.translate(-SHADDOW_OFFSET, -SHADDOW_OFFSET);
-            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bp);
+            canvas.translate(-SHADOW_OFFSET, -SHADOW_OFFSET);
+            */
+            canvas.drawRoundRect(bubbleRect, BUBBLE_RADIUS, BUBBLE_RADIUS, bubblePaint);
 
             canvas.translate(BUBBLE_MARGIN, BUBBLE_MARGIN);
 
@@ -215,7 +219,7 @@ public final class ConversationView extends View {
                 next.textLayout.draw(canvas);
 
                 canvas.restore();
-                next.bounds.top = currentTop- LINE_SPACING / 2;
+                next.bounds.top = currentTop - LINE_SPACING / 2;
                 int textHeight = next.textLayout.getHeight();
                 next.bounds.bottom = currentTop + textHeight + LINE_SPACING / 2;
 
@@ -232,25 +236,20 @@ public final class ConversationView extends View {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = View.MeasureSpec.getSize(widthMeasureSpec);
-
         setMeasuredDimension(width, (int) height);
     }
 
-    private void calculateStuff() {
-        if (links.isEmpty()) {
+    private void calculateLayout() {
+        if (links == null || links.isEmpty() || sharedWith == null) {
             return;
         }
 
-        if (sharedWith == null) {
-            return;
-        }
-
-        final int width = getWidth() - (WINDOW_MARGIN * 2);
+        final int width = getWidth() -((WINDOW_MARGIN * 4) + SHADOW_RADIUS * 2);
         if (width < 0) {
             return;
         }
 
-        height = ICON_SIZE + WINDOW_MARGIN;
+        height = ICON_SIZE + WINDOW_MARGIN + SHADOW_RADIUS;
 
         groups.clear();
 
@@ -260,7 +259,6 @@ public final class ConversationView extends View {
         if (filteredList.isEmpty()) {
             return;
         }
-
 
         int index = 0;
         do {
@@ -295,47 +293,18 @@ public final class ConversationView extends View {
         return icon;
     }
 
-    void loadLinks() {
-        httpClient.get("links", in -> {
-            // Off main thread
-            try {
-                JSONObject json = LinkShareApplication.readStream(new InputStreamReader(in));
-                if (json.has("success")) {
-                    List<Link> parsed = parseLinks(json.getJSONArray("success"));
-
-                    parsed.sort(Comparator.comparingLong(Link::getCreated));
-
-                    synchronized (links) {
-                        links.clear();
-                        links.addAll(parsed);
-                    }
-
-                    calculateStuff();
-                    return null;
-                } else {
-                    Log.e(TAG, "Server problem getting links: " + json.getString("error"));
-                }
-            } catch (JSONException | IOException e) {
-                Log.w(TAG, "Problem fetching links", e);
-            }
-            return null;
-        }, x -> {
-            invalidate();
-        });
-    }
-
-    private List<Link> parseLinks(JSONArray json) throws JSONException {
-        List<Link> result = new ArrayList<>();
-        for (int i = 0; i < json.length(); i += 1) {
-            result.add(new Link(json.getJSONObject(i)));
-        }
-        return result;
+    public void setLinks(List<Link> links) {
+        this.links = links;
+        calculateLayout();
+        requestLayout();
+        postInvalidate();
     }
 
     public void setSharedWith(String sharedWith) {
         this.sharedWith = sharedWith;
-        calculateStuff();
-        invalidate();
+        calculateLayout();
+        requestLayout();
+        postInvalidate();
     }
 
     private static class GroupData {
@@ -368,7 +337,6 @@ public final class ConversationView extends View {
         float getWidth() {
             return groupWidth;
         }
-
     }
 
     private static class BitmapData {
