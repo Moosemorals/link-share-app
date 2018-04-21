@@ -28,6 +28,7 @@ public final class LoginActivity extends Activity implements Consumer<AsyncResul
 
     }
 
+
     public void doLogin(View v) {
         String username = getValue(R.id.login_username);
         String password = getValue(R.id.login_password);

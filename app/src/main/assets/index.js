@@ -20,9 +20,14 @@ window.LinkStore = (() => {
         }
     }
 
-    function _backendEvent(event, delta) {
-        if (event in eventCallbacks) {
-            eventCallbacks[event](delta);
+    function _backendEvent(name, json) {
+        if (name in eventCallbacks) {
+
+            const event = JSON.parse(json);
+
+            eventCallbacks[name].forEach(callback => callback(event));
+        } else {
+            console.log("Ignoring event: " + name);
         }
     }
 
@@ -42,12 +47,12 @@ window.LinkStore = (() => {
         });
     }
 
-    function _onLinkAdded(callback) {
-        eventCallbacks["linkAdded"] = callback;
-    }
+    function _addListener(name, callback) {
+        if (!(name in eventCallbacks)) {
+            eventCallbacks[name] = [];
+        }
 
-    function _onLinkRemoved(callback) {
-        eventCallbacks["linkRemoved"] = callback;
+        eventCallbacks[name].push(callback);
     }
 
     return {
@@ -60,11 +65,11 @@ window.LinkStore = (() => {
         }),
         getUsers: () => _backend("getUsers"),
         getCredentials: () => _backend("getCredentials"),
+        getGivenLink: () => _backend("getGivenLink"),
         createLink: link => _backend("createLink", link),
         visit: id => LinkStoreJava.visit(id),
         logout: () => LinkStoreJava.logout(),
-        onLinkAdded: _onLinkAdded,
-        onLinkRemoved: _onLinkRemoved
+        on: _addListener
     }
 })();
 
@@ -311,18 +316,21 @@ function buildTabs(initalTab) {
     return tabs;
 }
 
+function drawShareLink(link) {
+    if (link !== undefined) {
+        const title = link.title || link.url;
+
+        $$(".controls .title").forEach(el => el.value = title);
+        $$(".controls .favIcon").forEach(el => el.src = link.favIconURL || BLANK_IMAGE);
+    }
+}
+
 function drawDisplay(initialTab) {
     const tabs = buildTabs(initialTab);
 
     replaceContent($("article"), tabs);
-    /*
-        getTabInfo().then(tabDetails => {
 
-            
-            $$(".controls .title").forEach(el => el.value = tabDetails.title || tabDetails.url || "");
-            $$(".controls .favIcon").forEach(el => el.src = tabDetails.favIconURL || BLANK_IMAGE);
-        })
-    */
+    LinkStore.getGivenLink().then(link => drawShareLink(link));
 }
 
 function doDelete(target) {
@@ -394,7 +402,7 @@ function onChangeTab(target) {
 }
 
 function setup() {
-    LinkStore.onLinkAdded(delta => {
+    LinkStore.on("linkAdded", delta => {
         delta.forEach(id => {
             const link = newLinks[id];
             links[id] = link;
@@ -413,7 +421,7 @@ function setup() {
         $$(".list").forEach(list => updateListBoxes(list));
     });
 
-    LinkStore.onLinkRemoved(delta =>
+    LinkStore.on("linkRemoved", delta =>
         delta.forEach(id => {
             $$("[data-id='" + id + "']").forEach(row => row.parentNode.removeChild(row))
             delete links[id];
@@ -487,6 +495,8 @@ function setup() {
             target = target.parentNode;
         }
     }, true);
+
+    LinkStore.on("poke", e => drawShareLink(e));
 
     Promise.all([
         LinkStore.getLinks(),
