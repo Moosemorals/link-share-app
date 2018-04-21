@@ -16,13 +16,14 @@ import java.util.function.Consumer;
 public final class LoginActivity extends Activity implements Consumer<AsyncResult<JSONObject>> {
 
     private static final String TAG = "LoginActivity";
+    private static final Class NEXT_ACTIVITY = WebLinksActivity.class;
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
 
         if (LinkShareApplication.getSharedPreferences(this).contains(LinkShareApplication.TOKEN_KEY)) {
-            startListActivity();
+            startNextActivity();
         }
 
     }
@@ -69,11 +70,11 @@ public final class LoginActivity extends Activity implements Consumer<AsyncResul
                 .putString(LinkShareApplication.USERNAME_KEY, username)
                 .putString(LinkShareApplication.TOKEN_KEY, token)
                 .apply();
-        startListActivity();
+        startNextActivity();
     }
 
-    private void startListActivity() {
-        Intent intent = new Intent(this, LinksActivity.class);
+    private void startNextActivity() {
+        Intent intent = new Intent(this, NEXT_ACTIVITY);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
         startActivity(intent);
         this.finish();

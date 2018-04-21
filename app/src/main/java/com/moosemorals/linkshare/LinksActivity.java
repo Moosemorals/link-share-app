@@ -1,8 +1,12 @@
 package com.moosemorals.linkshare;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -39,6 +43,33 @@ public final class LinksActivity extends Activity {
 
         tabBar.addTabChangedListener(newTabName -> conversationView.setSharedWith(newTabName));
         conversationView.setFavIconCache(((LinkShareApplication) getApplication()).getFavIconCache());
+
+        addShareViews();
+
+        Intent intent = getIntent();
+
+        String action = intent.getAction();
+        if (action != null) {
+            switch (action) {
+                case Intent.ACTION_SEND:
+              //      addShareViews();
+                    break;
+            }
+        }
+
+    }
+
+    private void addShareViews() {
+        LayoutInflater li = getLayoutInflater();
+        ViewGroup target = findViewById(R.id.links_share);
+
+        LayoutInflater.from(this).inflate(R.layout.share_dialog, target, true);
+
+        findViewById(R.id.links_root).requestLayout();
+
+        target.requestFocus();
+
+//        target.addView(v, 0, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     @Override

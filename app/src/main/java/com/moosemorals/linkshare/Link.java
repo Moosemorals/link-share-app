@@ -69,4 +69,17 @@ final class Link {
     public String getTo() {
         return to;
     }
+
+    public JSONObject toJson() throws JSONException {
+        JSONObject result = new JSONObject();
+
+        result.put("url", url);
+        result.put("title", title);
+        result.put("from", from);
+        result.put("to", to);
+        result.put("favIconURL", favIconUrl);
+        result.put("created", created);
+
+        return result;
+    }
 }
