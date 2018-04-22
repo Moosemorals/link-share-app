@@ -157,7 +157,7 @@ function buildRow(link) {
     let favIcon = buildElement("img", "favIcon");
     favIcon.width = 16;
     favIcon.height = 16;
-    favIcon.src = link.favIconURL || BLANK_IMAGE;
+    favIcon.src = getFavIconURL(link);
 
     const deleteLink = buildElement("a", "delete", "\u2A2F");
     deleteLink.title = "Click to delete this link";
@@ -316,12 +316,20 @@ function buildTabs(initalTab) {
     return tabs;
 }
 
+function getFavIconURL(link) {
+    if ("favIconURL" in link && link.favIconURL !== undefined && link.favIconURL !== "undefined") {
+        return link.favIconURL;
+    } else {
+        return BLANK_IMAGE;
+    }
+}
+
 function drawShareLink(link) {
     if (link !== undefined) {
         const title = link.title || link.url;
 
         $$(".controls .title").forEach(el => el.value = title);
-        $$(".controls .favIcon").forEach(el => el.src = link.favIconURL || BLANK_IMAGE);
+        $$(".controls .favIcon").forEach(el => el.src = getFavIconURL(link));
     }
 }
 
