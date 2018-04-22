@@ -11,23 +11,29 @@ import android.widget.TextView;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.function.Consumer;
 
-public final class LoginActivity extends Activity implements Consumer<AsyncResult<JSONObject>> {
+public final class LoginActivity extends Activity {
 
     private static final String TAG = "LoginActivity";
     private static final Class NEXT_ACTIVITY = WebLinksActivity.class;
 
+    private LinkShareApplication app;
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.login);
 
-        if (LinkShareApplication.getSharedPreferences(this).contains(LinkShareApplication.TOKEN_KEY)) {
+        app = (LinkShareApplication) getApplication();
+
+        if (app.isLoggedIn()) {
             startNextActivity();
+        } else {
+            setContentView(R.layout.login);
         }
 
     }
-
 
     public void doLogin(View v) {
         String username = getValue(R.id.login_username);
@@ -36,49 +42,30 @@ public final class LoginActivity extends Activity implements Consumer<AsyncResul
 
         setEnabled(false);
 
-        new AsyncPost(this,"login", this)
-                .execute("username", username,
+        String body = LinkShareApplication.paramEncode("username", username,
                         "password", password,
                         "device", device);
-    }
 
-    @Override
-    public void accept(AsyncResult<JSONObject> result) {
-        if (result.isSuccess()) {
-            JSONObject json = result.getResult();
-
-            String username, token;
+        app.getHttpClient().post("login", body, inputStream -> {
             try {
+                JSONObject json = LinkShareApplication.readJsonFromStream(inputStream);
+
                 if (json.has("success")) {
-                    JSONObject success = json.getJSONObject("success");
-                    username = success.getString("user");
-                    token = success.getString("token");
-                    onSuccess(username, token);
-               } else {
-                    Log.w(TAG, "Login failed: " + json.getString("error"));
+                    app.completeLogin(json.getJSONObject("success"));
+                    startNextActivity();
                 }
-
-            } catch (JSONException e) {
-                Log.e(TAG, "JSON problem", e);
+            } catch (JSONException | IOException e) {
+                Log.w(TAG, "Login problem", e);
             }
-        }
-        setEnabled(true);
-    }
-
-    private void onSuccess(String username, String token) {
-        LinkShareApplication.getSharedPreferences(this)
-                .edit()
-                .putString(LinkShareApplication.USERNAME_KEY, username)
-                .putString(LinkShareApplication.TOKEN_KEY, token)
-                .apply();
-        startNextActivity();
+            return null;
+        }, x -> setEnabled(true));
     }
 
     private void startNextActivity() {
         Intent intent = new Intent(this, NEXT_ACTIVITY);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
         startActivity(intent);
-        this.finish();
+        finish();
     }
 
     private void setEnabled(boolean enabled) {

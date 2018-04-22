@@ -34,13 +34,16 @@ public final class WebLinksActivity extends Activity {
 
     private WebView webView;
     private LinkStore linkStore;
+    private LinkShareApplication app;
 
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        app = (LinkShareApplication)getApplication();
+
         // We might have arrived here from a SEND intent, so check if we're logged in
-        String user = getUser();
+        String user = app.getUserName();
         if (user == null) {
             startLoginActivity();
             return;
@@ -103,7 +106,7 @@ public final class WebLinksActivity extends Activity {
         getHttpClient().get("links", in -> {
             // Off main thread
             try {
-                JSONObject json = LinkShareApplication.readStream(new InputStreamReader(in));
+                JSONObject json = LinkShareApplication.readJsonFromStream(in);
                 if (json.has("success")) {
                     return json.getJSONArray("success");
                 }
@@ -118,7 +121,7 @@ public final class WebLinksActivity extends Activity {
         getHttpClient().get("users", in -> {
             // Off main thread
             try {
-                JSONObject json = LinkShareApplication.readStream(new InputStreamReader(in));
+                JSONObject json = LinkShareApplication.readJsonFromStream(in);
                 if (json.has("success")) {
                     return json.getJSONArray("success");
                 }
@@ -131,11 +134,11 @@ public final class WebLinksActivity extends Activity {
     }
 
     private Backend getHttpClient() {
-        return ((LinkShareApplication) getApplication()).getHttpClient();
+        return app.getHttpClient();
     }
 
-    private String getUser() {
-        return LinkShareApplication.getSharedPreferences(this).getString(LinkShareApplication.USERNAME_KEY, null);
+    private String getUserName() {
+        return app.getUserName();
     }
 
     private static class LinkStore {
@@ -184,7 +187,7 @@ public final class WebLinksActivity extends Activity {
         public void getCredentials(String callback, String id) {
             JSONObject creds = new JSONObject();
             try {
-                creds.put("user", parent.getUser());
+                creds.put("user", parent.getUserName());
             } catch (JSONException e) {
                 throw new RuntimeException("Can't build JSON!", e);
             }

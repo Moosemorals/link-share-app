@@ -2,7 +2,6 @@ package com.moosemorals.linkshare;
 
 import android.app.Application;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -10,6 +9,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -28,38 +28,15 @@ import javax.net.ssl.TrustManagerFactory;
 
 public final class LinkShareApplication extends Application {
 
-    private static final String TAG = "LinkShareApplication";
-
     static final String BASEURL = "https://moosemorals.com/link-share/";
     static final String USERNAME_KEY = "com.moosemorals.linkshare.username";
     static final String TOKEN_KEY = "com.moosemorals.linkshare.token";
-
+    private static final String TAG = "LinkShareApplication";
     private static final String PREFS_NAME = LinkShareApplication.class.getName();
 
     private FavIconCache favIconCache;
     private Backend httpClient;
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        favIconCache = new FavIconCache();
-        favIconCache.start();
-
-        try {
-            httpClient = new Backend(this);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        httpClient.start();
-    }
-
-    Backend getHttpClient() {
-        return httpClient;
-    }
-
-    FavIconCache getFavIconCache() {
-        return favIconCache;
-    }
+    private SSLSocketFactory sslSocketFactory = null;
 
     static String paramEncode(String... param) {
         if (param.length % 2 != 0) {
@@ -87,56 +64,11 @@ public final class LinkShareApplication extends Application {
         return result.toString();
     }
 
-    static SharedPreferences getSharedPreferences(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    static JSONObject readJsonFromStream(InputStream in) throws JSONException, IOException {
+        return readJsonFromStream(new InputStreamReader(in, "UTF-8"));
     }
 
-    static String getToken(Context context) {
-        return getSharedPreferences(context).getString(TOKEN_KEY, null);
-    }
-
-    static String getUserName(Context context) {
-        return getSharedPreferences(context).getString(USERNAME_KEY, null);
-    }
-
-    // Adapted from https://stackoverflow.com/q/44483431/195833
-    static SSLSocketFactory getSSLSocketFactory(Context context) throws IOException {
-        if (context == null) {
-            throw new IOException("No context");
-        }
-
-        // Load CAs from an InputStream
-        // (could be from a resource or ByteArrayInputStream or ...)
-        try {
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            // From https://www.washington.edu/itconnect/security/ca/load-der.crt
-            Certificate ca;
-            try (InputStream caInput = context.getResources().openRawResource(R.raw.letsencrypt_x3)) {
-                ca = cf.generateCertificate(caInput);
-                Log.d(TAG, "ca=" + ((X509Certificate) ca).getSubjectDN());
-            }
-
-            // Create a KeyStore containing our trusted CAs
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, null);
-            keyStore.setCertificateEntry("ca", ca);
-
-            // Create a TrustManager that trusts the CAs in our KeyStore
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(keyStore);
-
-            // Create an SSLContext that uses our TrustManager
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, tmf.getTrustManagers(), null);
-
-            return sslContext.getSocketFactory();
-
-        } catch (CertificateException | NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
-            throw new IOException(e);
-        }
-    }
-
-    static JSONObject readStream(Reader in) throws JSONException, IOException {
+    static JSONObject readJsonFromStream(Reader in) throws JSONException, IOException {
         char[] buf = new char[4096];
         int read;
         StringBuilder raw = new StringBuilder();
@@ -144,7 +76,92 @@ public final class LinkShareApplication extends Application {
             raw.append(buf, 0, read);
         }
 
-        Log.d(TAG,"Read: " + raw.toString());
+        Log.d(TAG, "Read: " + raw.toString());
         return new JSONObject(raw.toString());
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        favIconCache = new FavIconCache();
+        favIconCache.start();
+
+        try {
+            httpClient = new Backend(this);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        httpClient.start();
+    }
+
+    Backend getHttpClient() {
+        return httpClient;
+    }
+
+    FavIconCache getFavIconCache() {
+        return favIconCache;
+    }
+
+    String getToken() {
+        return getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(TOKEN_KEY, null);
+    }
+
+    String getUserName() {
+        return getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(USERNAME_KEY, null);
+    }
+
+    void completeLogin(JSONObject json) throws JSONException {
+
+        String username = json.getString("user");
+        String token = json.getString("token");
+
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(LinkShareApplication.USERNAME_KEY, username)
+                .putString(LinkShareApplication.TOKEN_KEY, token)
+                .apply();
+
+    }
+
+    boolean isLoggedIn() {
+        return getUserName() != null;
+    }
+
+    // Adapted from https://stackoverflow.com/q/44483431/195833
+    SSLSocketFactory getSSLSocketFactory() throws IOException {
+        if (sslSocketFactory == null) {
+
+            // Load CAs from an InputStream
+            // (could be from a resource or ByteArrayInputStream or ...)
+            try {
+                CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                // From https://www.washington.edu/itconnect/security/ca/load-der.crt
+                Certificate ca;
+                try (InputStream caInput = getResources().openRawResource(R.raw.letsencrypt_x3)) {
+                    ca = cf.generateCertificate(caInput);
+                    Log.d(TAG, "ca=" + ((X509Certificate) ca).getSubjectDN());
+                }
+
+                // Create a KeyStore containing our trusted CAs
+                KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keyStore.load(null, null);
+                keyStore.setCertificateEntry("ca", ca);
+
+                // Create a TrustManager that trusts the CAs in our KeyStore
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(keyStore);
+
+                // Create an SSLContext that uses our TrustManager
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(null, tmf.getTrustManagers(), null);
+
+                sslSocketFactory = sslContext.getSocketFactory();
+
+            } catch (CertificateException | NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
+                throw new IOException(e);
+            }
+        }
+
+        return sslSocketFactory;
     }
 }
